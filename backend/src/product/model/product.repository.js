@@ -31,3 +31,8 @@ export const getTotalCountsOfProduct = async () => {
 export const findProductRepo = async (productId) => {
   return await ProductModel.findById(productId);
 };
+
+export const findByCategoryRepo = async (filterExpression) => {
+  console.log(filterExpression, "expression...");
+  return await ProductModel.find(filterExpression);
+}

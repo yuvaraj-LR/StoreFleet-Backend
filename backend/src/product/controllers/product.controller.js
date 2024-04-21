@@ -10,6 +10,7 @@ import {
   getProductDetailsRepo,
   getTotalCountsOfProduct,
   updateProductRepo,
+  findByCategoryRepo
 } from "../model/product.repository.js";
 import ProductModel from "../model/product.schema.js";
 
@@ -30,7 +31,38 @@ export const addNewProduct = async (req, res, next) => {
 };
 
 export const getAllProducts = async (req, res, next) => {
-  // Implement the functionality for search, filter and pagination this function.
+  try {
+    const { page = 1, limit = 10, keyword, category } = req.query;
+
+    let query = {};
+
+    // Filter by keyword
+    if (keyword) {
+      query.$or = [
+        { name: { $regex: keyword, $options: "i" } },
+        { description: { $regex: keyword, $options: "i" } },
+      ];
+    }
+
+    // Filter by category
+    if (category) {
+      query.category = category;
+    }
+
+    const totalCount = await getTotalCountsOfProduct(query);
+
+    const products = await getAllProductsRepo(query, parseInt(limit), parseInt(page));
+
+    res.status(200).json({
+      success: true,
+      totalCount,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+      products,
+    });
+  } catch (error) {
+    return next(new ErrorHandler(500, error));
+  }
 };
 
 export const updateProduct = async (req, res, next) => {
@@ -88,6 +120,7 @@ export const rateProduct = async (req, res, next) => {
       return next(new ErrorHandler(400, "rating can't be empty"));
     }
     const product = await findProductRepo(productId);
+
     if (!product) {
       return next(new ErrorHandler(400, "Product not found!"));
     }
@@ -147,12 +180,27 @@ export const deleteReview = async (req, res, next) => {
     const isReviewExistIndex = reviews.findIndex((rev) => {
       return rev._id.toString() === reviewId.toString();
     });
+
     if (isReviewExistIndex < 0) {
       return next(new ErrorHandler(400, "review doesn't exist"));
     }
 
     const reviewToBeDeleted = reviews[isReviewExistIndex];
-    reviews.splice(isReviewExistIndex, 1);
+
+    if(req.user._id.toString() == reviewToBeDeleted.user.toString()) { 
+      reviews.splice(isReviewExistIndex, 1);
+    } else {
+      return next(new ErrorHandler(400, "review doesn't belong to this user."));
+    }
+
+    // Included the avgRating functionality.
+    let avgRating = 0;
+    product.reviews.forEach((rev) => {
+      avgRating += rev.rating;
+    });
+
+    const updatedRatingOfProduct = avgRating / product.reviews.length;
+    product.rating = updatedRatingOfProduct;
 
     await product.save({ validateBeforeSave: false });
     res.status(200).json({

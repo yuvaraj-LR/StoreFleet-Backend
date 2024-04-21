@@ -80,4 +80,6 @@ export const sendPasswordResetEmail = async (user, resetPasswordURL) => {
   };
 
   await transporter.sendMail(mailOptions);
+  console.log("<--------------------Reset Link------------------------->");
+  console.log("Successfully send mail for reset password.");
 };

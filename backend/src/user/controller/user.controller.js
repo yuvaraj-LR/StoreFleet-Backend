@@ -5,6 +5,8 @@ import { sendPasswordResetEmail } from "../../../utils/emails/passwordReset.js";
 import { sendWelcomeEmail } from "../../../utils/emails/welcomeMail.js";
 import { ErrorHandler } from "../../../utils/errorHandler.js";
 import { sendToken } from "../../../utils/sendToken.js";
+import { encryptedPwd } from "../../../middlewares/encryptPwd.js"; 
+
 import {
   createNewUserRepo,
   deleteUserRepo,
@@ -13,20 +15,32 @@ import {
   getAllUsersRepo,
   updateUserProfileRepo,
   updateUserRoleAndProfileRepo,
+  requestForgetPassword,
+  resetPassword
 } from "../models/user.repository.js";
 import crypto from "crypto";
 
 export const createNewUser = async (req, res, next) => {
   const { name, email, password } = req.body;
+
   try {
-    const newUser = await createNewUserRepo(req.body);
+    const user = {
+      name, 
+      email,
+      "password": await encryptedPwd(password)
+    }
+    const newUser = await createNewUserRepo(user);
     await sendToken(newUser, res, 200);
 
     // Implement sendWelcomeEmail function to send welcome message
     await sendWelcomeEmail(newUser);
   } catch (err) {
     //  handle error for duplicate email
-    return next(new ErrorHandler(400, err));
+    if (err.name === 'MongoServerError' && err.code === 11000) {
+      return next(new ErrorHandler(400, "Email is already registered."));
+    }else {
+      return next(new ErrorHandler(400, err));
+    }
   }
 };
 
@@ -64,10 +78,48 @@ export const logoutUser = async (req, res, next) => {
 
 export const forgetPassword = async (req, res, next) => {
   // Implement feature for forget password
+  let user = await findUserRepo(req.body);
+  console.log(user, "userfound.");
+
+  if(!user) {
+    res.status(404).json({success: false, msg: "No such user found."})
+  }
+
+  // Check if there is an existing reset password token and if it has expired
+  if (user.resetPasswordToken && user.resetPasswordExpire > Date.now()) {
+    return res.status(400).json({ success: false, msg: "Token already exists." });
+  }
+  
+  let token = await user.getResetPasswordToken();
+  await sendPasswordResetEmail(user, token)
+  
+  await requestForgetPassword(user, token);
+
+  res.status(200).json({success: true, msg: "Reset password link has been sent to your mail."})
 };
 
 export const resetUserPassword = async (req, res, next) => {
   // Implement feature for reset password
+  try {
+    const {token} = req.params;
+    console.log(token, "tokenennn..");
+
+    const user = await findUserRepo({"resetPasswordToken": token});
+    await findUserForPasswordResetRepo(token);
+
+    const {password, confirmPassword} = req.body;
+
+    if(password != confirmPassword) {
+      return next(new ErrorHandler(400, "Mismatch password and confirmPassword."));
+    }
+
+    let encryptedPass = await encryptedPwd(password);
+    await resetPassword(user, encryptedPass);
+
+    return res.status(200).json({success: true, msg: "Password reset successfully."})
+  } catch (error) {
+    return next(new ErrorHandler(500, error));
+  }
 };
 
 export const getUserDetails = async (req, res, next) => {
@@ -162,4 +214,8 @@ export const deleteUser = async (req, res, next) => {
 
 export const updateUserProfileAndRole = async (req, res, next) => {
   // Write your code here for updating the roles of other users by admin
+  const userId = req.params.id;
+
+  await updateUserRoleAndProfileRepo(userId, req.body);
+  return res.status(200).json({success: true, msg: "user profile and role are successfully changed."});
 };

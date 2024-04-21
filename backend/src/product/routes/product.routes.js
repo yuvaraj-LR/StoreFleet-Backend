@@ -29,7 +29,7 @@ router
   .route("/delete/:id")
   .delete(auth, authByUserRole("admin"), deleteProduct);
 
-// POST Routes User
+// PUT Routes User
 router.route("/rate/:id").put(auth, rateProduct);
 
 // DELETE Routes User

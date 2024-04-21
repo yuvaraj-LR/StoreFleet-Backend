@@ -1,6 +1,5 @@
 import express from "express";
 import dotenv from "dotenv";
-import path from "path";
 import productRoutes from "./src/product/routes/product.routes.js";
 import {
   errorHandlerMiddleware,
@@ -10,8 +9,7 @@ import userRoutes from "./src/user/routes/user.routes.js";
 import cookieParser from "cookie-parser";
 import orderRoutes from "./src/order/routes/order.routes.js";
 
-const configPath = path.resolve("backend", "config", "uat.env");
-dotenv.config({ path: configPath });
+dotenv.config({ path: "./config/.env" });
 
 const app = express();
 app.use(express.json());
