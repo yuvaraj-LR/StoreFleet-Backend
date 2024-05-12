@@ -9,7 +9,7 @@ import userRoutes from "./src/user/routes/user.routes.js";
 import cookieParser from "cookie-parser";
 import orderRoutes from "./src/order/routes/order.routes.js";
 
-dotenv.config({ path: "./config/.env" });
+dotenv.config();
 
 const app = express();
 app.use(express.json());
